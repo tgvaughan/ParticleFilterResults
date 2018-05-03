@@ -1,0 +1,156 @@
+<beast version="2.0" namespace="beast.core
+                                :beast.core.parameter
+                                :beast.core.util
+                                :beast.evolution.likelihood
+                                :beast.evolution.operators
+                                :epiinf
+                                :epiinf.models
+                                :epiinf.distribs
+                                :epiinf.util
+                                :feast.expressions
+                                :feast.mapping">
+
+
+  <tree spec="SimulatedTransmissionTree" id="simulated_tree" fileName="$(filebase)_truth.tree">
+    <finalTreeSampleOffsetParam id="finalTreeSampleOffset" spec="RealParameter" value="0.0"/>
+    <epidemicTrajectory spec="SimulatedTrajectory" fileName="$(filebase)_truth.traj"
+                        id="true_trajectory">
+      <model spec="SIRModel" usePsiSamplingProportion="true">
+        <S0 id="true_S0" spec="RealParameter" value="199"/>
+        <infectionRate id="true_infectionRate" spec="RealParameter" value="0.02"/>
+        <recoveryRate id="true_recoveryRate" spec="RealParameter" value="1.0"/>
+        <psiSamplingVariable id="true_samplingProp" spec="RealParameter" value="0.1"/>
+        <removalProb id="true_removalProb" spec="RealParameter" value="1.0"/>
+        <origin id="true_origin" spec="RealParameter" value="5.0"/>
+      </model>
+    </epidemicTrajectory>
+  </tree>
+
+  <alignment id="alignment" spec="epiinf.SimulatedAlignment"
+             tree="@simulated_tree" sequenceLength="2000" outputFileName="$(filebase)_alignment.nexus">
+    <siteModel id="siteModel" spec="beast.evolution.sitemodel.SiteModel">
+      <substModel spec="beast.evolution.substitutionmodel.JukesCantor"/>
+      <mutationRate spec="RealParameter" value="0.005"/>
+    </siteModel>
+  </alignment>
+
+  <run spec="MCMC" id="mcmc" chainLength="1000000">
+    <state>
+      <stateNode id="tree" spec="beast.util.ClusterTree" taxa="@alignment" clusterType="upgma">
+        <trait spec='TipDatesFromTree' tree="@simulated_tree">
+          <taxa spec='beast.evolution.alignment.TaxonSet' alignment="@alignment"/>
+        </trait>
+      </stateNode>
+      <stateNode id="infectionRate" spec="RealParameter" value="0.01"/>
+      <stateNode id="recoveryRate" spec="RealParameter" value="0.1"/>
+      <stateNode id="origin" spec="RealParameter" value="6.0"/>
+      <stateNode id="S0" spec="RealParameter" value="150" upper="300"/>
+    </state>
+
+    <distribution id="posterior" spec="CompoundDistribution">
+
+      <distribution spec="TreeLikelihood" id="treeLikelihood">
+        <data idref="alignment"/>
+        <tree idref="tree"/>
+        <siteModel idref="siteModel"/>
+      </distribution>
+
+      <distribution spec="SMCTreeDensity" id="treePrior" nParticles="100" tree="@tree">
+        <finalTreeSampleOffset idref="finalTreeSampleOffset"/>
+        <model id="model" spec="SIRModel" usePsiSamplingProportion="true">
+          <S0 idref="S0"/>
+          <infectionRate idref="infectionRate"/>
+          <recoveryRate idref="recoveryRate"/>
+          <psiSamplingVariable idref="true_samplingProp"/>
+          <removalProb idref="true_removalProb"/>
+          <origin idref="origin"/>
+        </model>
+      </distribution>
+
+      <distribution spec="CompoundDistribution" id="paramPriors">
+        <distribution spec="beast.math.distributions.Prior" x="@origin">
+          <distr spec="beast.math.distributions.OneOnX"/>
+        </distribution>
+        <distribution spec="beast.math.distributions.Prior" x="@infectionRate">
+          <distr spec="beast.math.distributions.OneOnX"/>
+        </distribution>
+        <distribution spec="beast.math.distributions.Prior" x="@recoveryRate">
+          <distr spec="beast.math.distributions.OneOnX"/>
+        </distribution>
+      </distribution>
+    </distribution>
+
+    <operator id='infectionRateScaler' spec='ScaleOperator' scaleFactor="0.8" weight="1">
+      <parameter idref="infectionRate"/>
+    </operator>
+
+    <operator id='recoveryRateScaler' spec='ScaleOperator' scaleFactor="0.8" weight="1">
+      <parameter idref="recoveryRate"/>
+    </operator>
+
+    <operator id="S0scaler" spec="ScaleOperator" scaleFactor="0.8" weight="1">
+      <parameter idref="S0"/>
+    </operator>
+
+    <operator id='originScaler' spec='ScaleOperator' scaleFactor="0.8" weight="1">
+      <parameter idref="origin"/>
+    </operator>
+
+    <operator id='treeScaler' spec='ScaleOperator' scaleFactor="0.5" weight="1">
+      <tree idref="tree"/>
+    </operator>
+
+    <operator id="paramUpDown" spec="UpDownOperator" scaleFactor="0.8" weight="1">
+      <up idref="S0"/>
+      <down idref="infectionRate"/>
+    </operator>
+
+    <operator id='treeUpDown' spec='UpDownOperator' scaleFactor="0.8" weight="1">
+      <up idref="tree"/>
+      <up idref="origin"/>
+      <down idref="infectionRate"/>
+      <down idref="recoveryRate"/>
+    </operator>
+
+    <operator spec='Uniform' weight="10">
+      <tree idref="tree"/>
+    </operator>
+    <operator spec='SubtreeSlide' weight="5" gaussian="true" size="1.0">
+      <tree idref="tree"/>
+    </operator>
+    <operator id='narrow' spec='Exchange' isNarrow='true' weight="1">
+      <tree idref="tree"/>
+    </operator>
+    <operator id='wide' spec='Exchange' isNarrow='false' weight="1">
+      <tree idref="tree"/>
+    </operator>
+    <operator spec='WilsonBalding' weight="1">
+      <tree idref="tree"/>
+    </operator>
+
+
+    <logger id="screenlog" spec="Logger" logEvery="1000">
+      <log idref="posterior"/>
+      <log idref="infectionRate"/>
+      <log idref="recoveryRate"/>
+      <log idref="S0"/>
+      <log idref="origin"/>
+    </logger>
+
+    <logger logEvery="1000" fileName="$(filebase).trees">
+      <log idref="tree"/>
+    </logger>
+
+    <logger logEvery="1000" fileName="$(filebase).traj">
+      <log id="trajConditioned" spec='TrajectoryLogger' treeDensity="@treePrior" />
+    </logger>
+
+    <logger id="filelog" spec="Logger" logEvery="1000" fileName="$(filebase).log">
+      <log idref="posterior"/>
+      <log idref="infectionRate"/>
+      <log idref="recoveryRate"/>
+      <log idref="S0"/>
+      <log idref="origin"/>
+    </logger>
+  </run>
+</beast>

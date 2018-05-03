@@ -1,0 +1,95 @@
+<beast version="2.0" namespace="beast.core
+    :beast.core.parameter
+    :beast.core.util
+    :beast.evolution.likelihood
+    :beast.evolution.operators
+    :epiinf
+    :epiinf.models
+    :epiinf.distribs
+    :epiinf.util
+    :feast.expressions
+    :feast.mapping">
+
+
+    <tree spec="SimulatedTransmissionTree" id="simulated_tree" fileName="$(filebase).$(seed).truth.tree">
+        <epidemicTrajectory id="trajectory" spec="SimulatedTrajectory" fileName="$(filebase).$(seed).truth.traj" minSampleCount="5">
+            <model spec="SISModel" usePsiSamplingProportion="false">
+                <origin id="origin" spec="RealParameter" value="5.0"/>
+                <S0 id="S0" spec="RealParameter" value="199"/>
+                <infectionRate id="beta" spec="RealParameter" value="0.02"/>
+                <recoveryRate id="mu" spec="RealParameter" value="1"/>
+                <psiSamplingVariable id="psi" spec="RealParameter" value="0.1"/>
+                <removalProb id="r" spec="RealParameter" value="0.0"/>
+            </model>
+        </epidemicTrajectory>
+    </tree>
+
+    <alignment id="alignment" spec="epiinf.SimulatedAlignment"
+        tree="@simulated_tree" sequenceLength="2000" outputFileName="$(filebase).$(seed).alignment.nexus">
+        <siteModel spec="beast.evolution.sitemodel.SiteModel">
+            <substModel spec="beast.evolution.substitutionmodel.JukesCantor"/>
+            <mutationRate spec="RealParameter" value="0.005"/>
+        </siteModel>
+    </alignment>
+
+    <run spec="MCMC" id="mcmc" chainLength="10000000">
+        <state>
+            <stateNode id="tree" spec="beast.util.ClusterTree" taxa="@alignment" clusterType="upgma">
+                <trait spec='TipDatesFromTree' tree="@simulated_tree">
+                    <taxa spec='beast.evolution.alignment.TaxonSet' alignment="@alignment"/>
+                </trait>
+            </stateNode>
+        </state>
+
+        <distribution id="posterior" spec="CompoundDistribution">
+            <distribution spec="TreeLikelihood" id="treeLikelihood">
+                <data idref="alignment"/>
+                <tree idref="tree"/>
+                <siteModel id="siteModel" spec="beast.evolution.sitemodel.SiteModel">
+                    <substModel spec="beast.evolution.substitutionmodel.JukesCantor"/>
+                    <mutationRate spec="RealParameter" value="0.005"/>
+                </siteModel>
+            </distribution>
+
+            <distribution spec="SMCTreeDensity" id="treePrior" nParticles="20" tree="@tree" useTauLeaping="false">
+                <finalSampleOffset spec="FinalSampleOffsetFromTrajectory" trajectory="@trajectory"/>
+                <model spec="SISModel" id="model" usePsiSamplingProportion="false">
+                    <origin idref="origin"/>
+                    <S0 idref="S0"/>
+                    <infectionRate idref="beta"/>
+                    <recoveryRate idref="mu"/>
+                    <psiSamplingVariable idref="psi"/>
+                    <removalProb idref="r"/>
+                </model>
+            </distribution>
+        </distribution>
+
+<operator spec="SAScaleOperator" scaleFactor="0.5" tree="@tree" weight="20.0"/>
+<operator spec="SAScaleOperator" rootOnly="true" scaleFactor="0.95" tree="@tree" weight="20.0"/>
+<operator spec="SAUniform" tree="@tree" weight="20.0"/>
+<operator spec="SAWilsonBalding" tree="@tree" weight="20.0"/>
+<operator spec="SAExchange" isNarrow="false" tree="@tree" weight="20.0"/>
+<operator spec="SAExchange" tree="@tree" weight="20.0"/>
+<operator spec="LeafToSampledAncestorJump" tree="@tree" weight="20.0"/>
+
+        <logger id="screenlog" spec="Logger" logEvery="10000">
+            <log idref="posterior"/>
+            <log idref="treeLikelihood"/>
+            <log idref="treePrior"/>
+        </logger>
+
+        <!--logger logEvery="1000" fileName="$(filebase).$(seed).trees">
+            <log idref="tree"/>
+        </logger-->
+
+        <logger logEvery="10000" fileName="$(filebase).$(seed).traj">
+            <log id="trajConditioned" spec='TrajectoryLogger' treeDensity="@treePrior" />
+        </logger>
+
+        <logger id="filelog" spec="Logger" logEvery="10000" fileName="$(filebase).$(seed).log">
+            <log idref="posterior"/>
+            <log idref="treeLikelihood"/>
+            <log idref="treePrior"/>
+        </logger>
+    </run>
+</beast>
