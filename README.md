@@ -43,7 +43,9 @@ The files are as follows:
     * BD_inference.xml:
 
         When run using BEAST from the command line with the following arguments:
+        
              beast -D leaf_frac=0.1 BD_inference.xml
+             
         from a directory containing a simulated trajectory file named "simulated.traj",
         this script will generate samples from the posterior over the infection rate
         parameter "beta" with only 10% of the samples in the simulated trajectory
