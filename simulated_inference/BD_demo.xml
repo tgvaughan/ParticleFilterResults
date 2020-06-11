@@ -36,7 +36,7 @@
   <run spec="MCMC" id="mcmc" chainLength="1000000">
     <state>
       <stateNode id="tree" spec="beast.util.ClusterTree" taxa="@alignment" clusterType="upgma">
-        <trait spec='TipDatesFromTree' tree="@simulated_tree">
+        <trait spec='epiinf.util.TipDatesFromTree' tree="@simulated_tree">
           <taxa spec='beast.evolution.alignment.TaxonSet' alignment="@alignment"/>
         </trait>
       </stateNode>
